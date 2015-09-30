@@ -457,7 +457,7 @@ USE_NET=1
 else ifdef DPTBOARD
 EMBEDDED=1
 BOARD=DPTBOARD
-DEFINES += -DDPTBOARD -DSYSFS_GPIO_DIR="\"/sys/class/gpio\""
+DEFINES += -DDPTBOARD -DSYSFS_GPIO_DIR="\"/sys/class/gpio\"" -DMIPS
 LINUX=1
 OPENWRT_UCLIBC=1	# link with toolchain libc (uClibc or musl)
 FIXED_OBJ_NAME=1	# when defined the linker will always produce 'espruino' as executable name, for packaging in .ipk, .deb,

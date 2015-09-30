@@ -50,9 +50,9 @@ JsVar *jsnCallFunction(void *function, JsnArgumentType argumentSpecifier, JsVar 
     // try and pack it:
     JsnArgumentType argType = (JsnArgumentType)(argumentSpecifier&JSWAT_MASK);
 
-#ifndef USE_X86_CDECL
-    if (JSWAT_IS_64BIT(argType))
-      argCount = (argCount+1)&~1;
+#if !defined(USE_X86_CDECL) && !defined(MIPS)  
+  if (JSWAT_IS_64BIT(argType))
+    argCount = (argCount+1)&~1;
 #endif
 
     if (argCount > MAX_ARGS - (JSWAT_IS_64BIT(argType)?2:1)) {
