@@ -20,7 +20,7 @@
 #if defined(USE_WIZNET)
   #include "network_wiznet.h"
 #endif
-#if defined(USE_ESP8266_BOARD)
+#if defined(USE_ESP8266)
   #include "network_esp8266.h"
 #endif
 #if defined(LINUX)
@@ -117,7 +117,7 @@ unsigned long networkFlipIPAddress(unsigned long addr) {
 }
 
 /**
- * \brief Get the IP address of a hostname.
+ * Get the IP address of a hostname.
  * Retrieve the IP address of a hostname and return it in the address of the
  * ip address passed in.  If the hostname is as dotted decimal string, we will
  * decode that immediately otherwise we will use the network adapter's `gethostbyname`
@@ -145,7 +145,7 @@ void networkGetHostByName(
   if (!*out_ip_addr) {
     net->gethostbyname(net, hostName, out_ip_addr);
   }
-} // End of networkGetHostByName
+}
 
 
 
@@ -191,7 +191,7 @@ bool networkGetFromVar(JsNetwork *net) {
 #if defined(USE_WIZNET)
   case JSNETWORKTYPE_W5500 : netSetCallbacks_wiznet(net); break;
 #endif
-#if defined(USE_ESP8266_BOARD)
+#if defined(USE_ESP8266)
   case JSNETWORKTYPE_ESP8266_BOARD : netSetCallbacks_esp8266_board(net); break;
 #endif
 #if defined(LINUX)

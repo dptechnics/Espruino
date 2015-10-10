@@ -102,8 +102,8 @@ DEFINES += -DNO_ASSERT -DRELEASE
 endif
 
 LATEST_RELEASE=$(shell git tag | grep RELEASE_ | sort | tail -1)
-# extra echo here stops build errors caused by whitespace on Mac
-COMMITS_SINCE_RELEASE=$(shell echo `git log --oneline $(LATEST_RELEASE)..HEAD | wc -l`)
+# use egrep to count lines instead of wc to avoid whitespace error on Mac
+COMMITS_SINCE_RELEASE=$(shell git log --oneline $(LATEST_RELEASE)..HEAD | egrep -c .)
 ifneq ($(COMMITS_SINCE_RELEASE),0)
 DEFINES += -DBUILDNUMBER=\"$(COMMITS_SINCE_RELEASE)\"
 endif
@@ -394,8 +394,7 @@ else ifdef MICROBIT
 EMBEDDED=1
 SAVE_ON_FLASH=1
 BOARD=MICROBIT
-OPTIMIZEFLAGS+=-Os # Set this to -O0 to enable debugging.
-
+OPTIMIZEFLAGS+=-Os
 else ifdef NRF51822DK
 EMBEDDED=1
 SAVE_ON_FLASH=1
@@ -480,70 +479,65 @@ else ifdef ESP8266_512KB
 EMBEDDED=1
 USE_NET=1
 BOARD=ESP8266_BOARD
-DEFINES += -D__ETS__ -DICACHE_FLASH -DXTENSA -DUSE_ESP8266_BOARD
 # We have to disable inlining to keep code size in check
-OPTIMIZEFLAGS+=-Os -fno-inline-functions -std=gnu11 -fgnu89-inline
+OPTIMIZEFLAGS+=-Os -fno-inline-functions -std=gnu11 -fgnu89-inline -Wl,--allow-multiple-definition
 ESP_FLASH_SIZE      ?= 0       # 0->512KB
 ESP_FLASH_MODE      ?= 0       # 0->QIO
 ESP_FLASH_FREQ_DIV  ?= 0       # 0->40Mhz
 ESP_FLASH_MAX       ?= 442368  # max irom0 size for 512KB flash: 432KB
-ET_FS               ?= 4m      # 4Mbit flash size in esptool flash command
+ET_FS               ?= 4m      # 4Mbit (512KB) flash size in esptool flash command
 ET_FF               ?= 40m     # 40Mhz flash speed in esptool flash command
 ET_BLANK            ?= 0x7E000 # where to flash blank.bin to erase wireless settings
 
-else ifdef ESP8266_4M
+else ifdef ESP8266_4MB
 # esp8266 with 4MB flash chip with OTA support: we get 492KB in the first 512, 492 KB in the
-# second 512KB for firmware; and then we have 3MB-16KB for SPIFFS of which we're gonna use the
-# late 2MB-16KB to leave 1MB unused for future plans
+# second 512KB for firmware; and then we have 3MB-16KB for SPIFFS
 EMBEDDED=1
 USE_NET=1
-BOARD=ESP8266_BOARD
-DEFINES += -D__ETS__ -DICACHE_FLASH -DXTENSA -DUSE_ESP8266_BOARD
-# Enable link-time optimisations (inlining across files)
-OPTIMIZEFLAGS+=-O3 -std=gnu11 -fgnu89-inline -flto -fno-fat-lto-objects -Wl,--allow-multiple-definition
-DEFINES += -DLINK_TIME_OPTIMISATION
-ESP_SPI_SIZE        ?= 4       # 4->4MB (512KB+512KB)
-ESP_FLASH_MODE      ?= 0       # 0->QIO, 2->DIO
-ESP_FLASH_FREQ_DIV  ?= 15      # 15->80Mhz
-ESP_FLASH_MAX       ?= 503808  # max bin file for 512KB flash partition: 492KB
-ET_FS               ?= 32m     # 32Mbit flash size in esptool flash command
-ET_FF               ?= 80m     # 80Mhz flash speed in esptool flash command
+BOARD=ESP8266_OTA
+# Enable link-time optimisations (inlining across files) but don't go beyond -O2 'cause of
+# code size explosion, also -DLINK_TIME_OPTIMISATION leads to too big a firmware
+OPTIMIZEFLAGS+=-O2 -std=gnu11 -fgnu89-inline -flto -fno-fat-lto-objects -Wl,--allow-multiple-definition
+ESP_FLASH_SIZE      ?= 4        # 4->4MB (512KB+512KB)
+ESP_FLASH_MODE      ?= 0        # 0->QIO, 2->DIO
+ESP_FLASH_FREQ_DIV  ?= 15       # 15->80Mhz
+ESP_FLASH_MAX       ?= 503808   # max bin file for 512KB flash partition: 492KB
+ET_FS               ?= 32m      # 32Mbit (4MB) flash size in esptool flash command
+ET_FF               ?= 80m      # 80Mhz flash speed in esptool flash command
 ET_BLANK            ?= 0x3FE000 # where to flash blank.bin to erase wireless settings
 
-else ifdef ESP8266_2M
+else ifdef ESP8266_2MB
 # *** WARNING: THIS FLASH SIZE HAS NOT BEEN TESTED ***
 # esp8266 with 2MB flash chip with OTA support: same as 4MB except we have 1MB-16KB for SPIFFS
 EMBEDDED=1
 USE_NET=1
-BOARD=ESP8266_BOARD
-DEFINES += -D__ETS__ -DICACHE_FLASH -DXTENSA -DUSE_ESP8266_BOARD
+BOARD=ESP8266_OTA
 # Enable link-time optimisations (inlining across files)
 OPTIMIZEFLAGS+=-O3 -std=gnu11 -fgnu89-inline -flto -fno-fat-lto-objects -Wl,--allow-multiple-definition
 DEFINES += -DLINK_TIME_OPTIMISATION
-ESP_SPI_SIZE        ?= 3       # 3->2MB (512KB+512KB)
-ESP_FLASH_MODE      ?= 0       # 0->QIO, 2->DIO
-ESP_FLASH_FREQ_DIV  ?= 15      # 15->80Mhz
-ESP_FLASH_MAX       ?= 503808  # max bin file for 512KB flash partition: 492KB
-ET_FS               ?= 16m     # 32Mbit flash size in esptool flash command
-ET_FF               ?= 80m     # 80Mhz flash speed in esptool flash command
+ESP_FLASH_SIZE      ?= 3        # 3->2MB (512KB+512KB)
+ESP_FLASH_MODE      ?= 0        # 0->QIO, 2->DIO
+ESP_FLASH_FREQ_DIV  ?= 15       # 15->80Mhz
+ESP_FLASH_MAX       ?= 503808   # max bin file for 512KB flash partition: 492KB
+ET_FS               ?= 16m      # 16Mbit (2MB) flash size in esptool flash command
+ET_FF               ?= 80m      # 80Mhz flash speed in esptool flash command
 ET_BLANK            ?= 0x1FE000 # where to flash blank.bin to erase wireless settings
 
-else ifdef ESP8266_1M
+else ifdef ESP8266_1MB
 # *** WARNING: THIS FLASH SIZE HAS NOT BEEN TESTED ***
 # esp8266 with 1MB flash chip with OTA support: this is a mix between the 512KB and 2MB versions:
 # we get two partitions for firmware but we need to turn optimization off to leave some space
 # for SPIFFS
 EMBEDDED=1
 USE_NET=1
-BOARD=ESP8266_BOARD
-DEFINES += -D__ETS__ -DICACHE_FLASH -DXTENSA -DUSE_ESP8266_BOARD
+BOARD=ESP8266_OTA
 # We have to disable inlining to keep code size in check
-OPTIMIZEFLAGS+=-O2 -fno-inline-functions
-ESP_SPI_SIZE        ?= 2       # 2->1MB (512KB+512KB)
+OPTIMIZEFLAGS+=-O2 -fno-inline-functions -std=gnu11 -fgnu89-inline -Wl,--allow-multiple-definition
+ESP_FLASH_SIZE      ?= 2       # 2->1MB (512KB+512KB)
 ESP_FLASH_MODE      ?= 0       # 0->QIO, 2->DIO
 ESP_FLASH_FREQ_DIV  ?= 15      # 15->80Mhz
 ESP_FLASH_MAX       ?= 503808  # max bin file for 512KB flash partition: 492KB
-ET_FS               ?=  8m     # 32Mbit flash size in esptool flash command
+ET_FS               ?=  8m     # 8Mbit (1MB) flash size in esptool flash command
 ET_FF               ?= 80m     # 80Mhz flash speed in esptool flash command
 ET_BLANK            ?= 0xFE000 # where to flash blank.bin to erase wireless settings
 
@@ -656,8 +650,8 @@ ifndef LINUX
 ifdef WIZNET
 USE_WIZNET=1
 else
-ifeq ($(BOARD),ESP8266_BOARD)
-USE_ESP8266_BOARD=1
+ifeq ($(FAMILY),ESP8266)
+USE_ESP8266=1
 else
 USE_CC3000=1
 endif
@@ -667,7 +661,11 @@ endif
 
 ifdef DEBUG
 #OPTIMIZEFLAGS=-Os -g
+ifeq ($(FAMILY),ESP8266)
+OPTIMIZEFLAGS=-g -Os
+else
 OPTIMIZEFLAGS=-g
+endif
 DEFINES+=-DDEBUG
 endif
 
@@ -958,11 +956,6 @@ LIBS += -lwiringPi
 INCLUDE += -I/usr/local/include -L/usr/local/lib 
 endif
 
-ifdef USE_TEMPERATURE
-  INCLUDE += -I$(ROOT)/libs/temperature
-  WRAPPERSOURCES += libs/temperature/jswrap_temperature.c
-endif
-
 ifdef USE_BLUETOOTH
   INCLUDE += -I$(ROOT)/libs/bluetooth
   WRAPPERSOURCES += libs/bluetooth/jswrap_bluetooth.c
@@ -1143,56 +1136,57 @@ targetlibs/stm32legacyusb/legacy_usb.c
 endif #USB
 
 ifeq ($(FAMILY), NRF51)
-  NRF5X=1 
+  
+  NRF5X=1
   NRF5X_SDK_PATH=$(ROOT)/targetlibs/nrf5x/nrf51_sdk
-  # Hopefully nRF51 & nRF52 SDKs can combined into one soon...
+  
   # ARCHFLAGS are shared by both CFLAGS and LDFLAGS.
-  ARCHFLAGS = -mcpu=cortex-m0 -mthumb -mabi=aapcs -mfloat-abi=soft # Use nRF51 makefile provided in SDK as reference.
+  ARCHFLAGS = -mcpu=cortex-m0 -mthumb -mabi=aapcs -mfloat-abi=soft # Use nRF51 makefiles provided in SDK as reference.
  
-  # nRF51 specific...
+  # nRF51 specific. Main differences in SDK structure are softdevice, uart, delay...
   INCLUDE += -I$(NRF5X_SDK_PATH)/components/softdevice/s110/headers
   SOURCES += $(NRF5X_SDK_PATH)/components/toolchain/system_nrf51.c \
-  $(NRF5X_SDK_PATH)/components/drivers_nrf/uart/app_uart_fifo.c # UART is structured different for nRF51 & nRF52. may be an inconsistency in nordics SDK that needs fixing.
+  $(NRF5X_SDK_PATH)/components/drivers_nrf/uart/app_uart_fifo.c
+
   PRECOMPILED_OBJS+=$(NRF5X_SDK_PATH)/components/toolchain/gcc/gcc_startup_nrf51.o
 
-  DEFINES += -DBOARD_PCA10028  -DNRF51
-  ifdef SOFTDEVICE
-  	DEFINES += -DSWI_DISABLE0 -DSOFTDEVICE_PRESENT -DS110 -DBLE_STACK_SUPPORT_REQD
-  endif
-  LINKER_FILE = $(NRF5X_SDK_PATH)/components/toolchain/gcc/linker_nrf51_espruino.ld # The memory map here needs to be changed if using softdevice (currently assumes no sd) look at example linkers in sdk
-
+  DEFINES += -DBOARD_PCA10028  -DNRF51 -DSWI_DISABLE0 -DSOFTDEVICE_PRESENT -DS110 -DBLE_STACK_SUPPORT_REQD # SoftDevice included by default.
+  LINKER_FILE = $(NRF5X_SDK_PATH)/components/toolchain/gcc/linker_nrf51_ble_espruino.ld
+  
 endif # FAMILY == NRF51
 
 ifeq ($(FAMILY), NRF52)
+  
   NRF5X=1
   NRF5X_SDK_PATH=$(ROOT)/targetlibs/nrf5x/nrf52_sdk
 
   # ARCHFLAGS are shared by both CFLAGS and LDFLAGS.
-  ARCHFLAGS = -mcpu=cortex-m4 -mthumb -mabi=aapcs -mfloat-abi=hard -mfpu=fpv4-sp-d16
+  ARCHFLAGS = -mcpu=cortex-m4 -mthumb -mabi=aapcs -mfloat-abi=hard -mfpu=fpv4-sp-d16 # Use nRF52 makefiles provided in SDK as reference.
  
-  # nRF52 specific...
+  # nRF52 specific... Different structure from nRF51 SDK for both delay and uart.
   INCLUDE += -I$(NRF5X_SDK_PATH)/components/softdevice/s132/headers
   INCLUDE += -I$(NRF5X_SDK_PATH)/components/softdevice/s132/headers/nrf52
-  INCLUDE += -I$(NRF5X_SDK_PATH)/components/drivers_nrf/delay # this directory doesnt exist in nRF51 sdk
+  INCLUDE += -I$(NRF5X_SDK_PATH)/components/drivers_nrf/delay # this directory doesnt exist in nRF51 SDK.
   SOURCES += $(NRF5X_SDK_PATH)/components/toolchain/system_nrf52.c \
   $(NRF5X_SDK_PATH)/components/drivers_nrf/delay/nrf_delay.c \
   $(NRF5X_SDK_PATH)/components/drivers_nrf/uart/nrf_drv_uart.c \
   $(NRF5X_SDK_PATH)/components/libraries/uart/app_uart_fifo.c
-  # only nrf_delay.h in nrf52 sdk
-  # different structed uart in nrf51 sdk
 
   PRECOMPILED_OBJS+=$(NRF5X_SDK_PATH)/components/toolchain/gcc/gcc_startup_nrf52.o
 
-  # Assume that softdevice (S132) is always enabled for now...
   DEFINES += -DSWI_DISABLE0 -DSOFTDEVICE_PRESENT -DNRF52 -DBOARD_PCA10036 -DCONFIG_GPIO_AS_PINRESET -DS132 -DBLE_STACK_SUPPORT_REQD
-  LINKER_FILE = $(NRF5X_SDK_PATH)/components/toolchain/gcc/linker_nrf52_espruino.ld
+  LINKER_FILE = $(NRF5X_SDK_PATH)/components/toolchain/gcc/linker_nrf52_ble_espruino.ld
 
 endif #FAMILY == NRF52
 
 ifdef NRF5X
+  
   ARM = 1
   ARM_HAS_OWN_CMSIS = 1 # Nordic uses its own CMSIS files in its SDK, these are up-to-date.
   INCLUDE += -I$(ROOT)/targetlibs/nrf5x -I$(NRF5X_SDK_PATH)
+  
+  TEMPLATE_PATH = $(ROOT)/targetlibs/nrf5x # This is where common linker for both nRF51 & nRF52 is stored.
+  LDFLAGS += -L$(TEMPLATE_PATH)
 
   # These files are the Espruino HAL implementation.
   INCLUDE += -I$(ROOT)/targets/nrf5x
@@ -1202,9 +1196,8 @@ ifdef NRF5X
   targets/nrf5x/communication_interface.c \
   targets/nrf5x/nrf5x_utils.c
 
-  # Includes required for ...
-  # careful here.. all these includes and sources assume a softdevice. not efficeint/clean if softdevice (ble) is not enabled... fix
-  INCLUDE += -I$(NRF5X_SDK_PATH)/examples/ble_peripheral/ble_app_uart/config # Dangerous
+  # Careful here.. All these includes and sources assume a SoftDevice. Not efficeint/clean if softdevice (ble) is not enabled...
+  INCLUDE += -I$(NRF5X_SDK_PATH)/examples/ble_peripheral/ble_app_uart/config
   INCLUDE += -I$(NRF5X_SDK_PATH)/components/drivers_nrf/config
   INCLUDE += -I$(NRF5X_SDK_PATH)/examples/bsp
   INCLUDE += -I$(NRF5X_SDK_PATH)/components/libraries/fifo
@@ -1212,7 +1205,7 @@ ifdef NRF5X
   INCLUDE += -I$(NRF5X_SDK_PATH)/components/drivers_nrf/uart
   INCLUDE += -I$(NRF5X_SDK_PATH)/components/ble/common
   INCLUDE += -I$(NRF5X_SDK_PATH)/components/drivers_nrf/pstorage
-  INCLUDE += -I$(NRF5X_SDK_PATH)/components/libraries/uart  # not nrf51?
+  INCLUDE += -I$(NRF5X_SDK_PATH)/components/libraries/uart  # Not nRF51?
   INCLUDE += -I$(NRF5X_SDK_PATH)/components/device
   INCLUDE += -I$(NRF5X_SDK_PATH)/components/libraries/button
   INCLUDE += -I$(NRF5X_SDK_PATH)/components/libraries/timer
@@ -1244,9 +1237,24 @@ ifdef NRF5X
   $(NRF5X_SDK_PATH)/components/ble/common/ble_conn_params.c \
   $(NRF5X_SDK_PATH)/components/ble/ble_services/ble_nus/ble_nus.c \
   $(NRF5X_SDK_PATH)/components/ble/common/ble_srv_common.c \
-  $(NRF5X_SDK_PATH)/components/softdevice/common/softdevice_handler/softdevice_handler.c
+  $(NRF5X_SDK_PATH)/components/softdevice/common/softdevice_handler/softdevice_handler.c \
+  $(NRF5X_SDK_PATH)/components/drivers_nrf/hal/nrf_nvmc.c
 
 endif #NRF5X
+
+ifeq ($(FAMILY),ESP8266)
+# move os_printf strings into flash to save RAM space
+DEFINES += -DUSE_OPTIMIZE_PRINTF
+DEFINES += -D__ETS__ -DICACHE_FLASH -DXTENSA -DUSE_US_TIMER
+ESP8266=1
+LIBS += -lc -lgcc -lhal -lphy -lpp -lnet80211 -llwip -lwpa -lmain
+CFLAGS+= -fno-builtin -fno-strict-aliasing \
+-Wno-maybe-uninitialized -Wno-old-style-declaration -Wno-conversion -Wno-unused-variable \
+-Wno-unused-parameter -Wno-ignored-qualifiers -Wno-discarded-qualifiers -Wno-float-conversion \
+-Wno-parentheses -Wno-type-limits -Wno-unused-function -Wno-unused-value \
+-Wl,EL -Wl,--gc-sections -nostdlib -mlongcalls -mtext-section-literals
+endif
+
 
 ifdef MBED
 ARCHFLAGS += -mcpu=cortex-m3 -mthumb
@@ -1264,7 +1272,7 @@ ifdef ARM
     LINKER_FILE = gen/linker.ld
   endif
   DEFINES += -DARM
-  ifndef ARM_HAS_OWN_CMSIS # nRF5x targets do not use the CMSIS files.
+  ifndef ARM_HAS_OWN_CMSIS # nRF5x targets do not use the shared CMSIS files.
     INCLUDE += -I$(ROOT)/targetlibs/arm
   endif
   OPTIMIZEFLAGS += -fno-common -fno-exceptions -fdata-sections -ffunction-sections
@@ -1272,9 +1280,9 @@ ifdef ARM
   # I've no idea why this breaks the bootloader, but it does.
   # Given we've left 10k for it, there's no real reason to enable LTO anyway.
   ifndef BOOTLOADER
-    # Enable link-time optimisations (inlining across files)
-    OPTIMIZEFLAGS += -flto -fno-fat-lto-objects -Wl,--allow-multiple-definition
-    DEFINES += -DLINK_TIME_OPTIMISATION
+	# Enable link-time optimisations (inlining across files)
+	OPTIMIZEFLAGS += -flto -fno-fat-lto-objects -Wl,--allow-multiple-definition
+	DEFINES += -DLINK_TIME_OPTIMISATION
   endif
 
   # Limit code size growth via inlining to 8% Normally 30% it seems... This reduces code size while still being able to use -O3
@@ -1308,16 +1316,6 @@ ifdef RASPBERRYPI
   # compiling in-place, so give it a normal name
   PROJ_NAME=espruino
  endif
-endif
-
-ifeq ($(FAMILY), ESP8266)
-ESP8266=1
-LIBS += -lc -lgcc -lhal -lphy -lpp -lnet80211 -llwip -lwpa -lmain
-CFLAGS+= -fno-builtin -fno-strict-aliasing \
--Wno-maybe-uninitialized -Wno-old-style-declaration -Wno-conversion -Wno-unused-variable \
--Wno-unused-parameter -Wno-ignored-qualifiers -Wno-discarded-qualifiers -Wno-float-conversion \
--Wno-parentheses -Wno-type-limits -Wno-unused-function -Wno-unused-value \
--Wl,EL -Wl,--gc-sections -nostdlib -mlongcalls -mtext-section-literals
 endif
 
 ifdef STM32
@@ -1369,6 +1367,7 @@ ifndef NRF5X
  LDFLAGS += $(OPTIMIZEFLAGS) $(ARCHFLAGS)
 else ifdef NRF5X
  LDFLAGS += $(ARCHFLAGS)
+ LDFLAGS += --specs=nano.specs -lc -lnosys
 endif # NRF5X
 
 ifdef EMBEDDED
@@ -1377,12 +1376,8 @@ LDFLAGS += -Wl,--gc-sections
 endif
 
 ifdef LINKER_FILE
-LDFLAGS += -T$(LINKER_FILE)
+  LDFLAGS += -T$(LINKER_FILE)
 endif
-
-ifdef NRF5X
-LDFLAGS += --specs=nano.specs -lc -lnosys
-endif # NRF5X
 
 #
 # Definitions for the build of the ESP8266
@@ -1399,7 +1394,6 @@ CCPREFIX=xtensa-lx106-elf-
 
 # Extra flags passed to the linker
 LDFLAGS += -L$(ESP8266_SDK_ROOT)/lib \
--Ttargets/esp8266/eagle.app.v6.0x10000.ld \
 -nostdlib \
 -Wl,--no-check-sections \
 -u call_user_start \
@@ -1407,10 +1401,11 @@ LDFLAGS += -L$(ESP8266_SDK_ROOT)/lib \
 
 # Extra source files specific to the ESP8266
 SOURCES += targets/esp8266/uart.c \
-targets/esp8266/user_main.c \
-targets/esp8266/jshardware.c \
-targets/esp8266/esp8266_board_utils.c \
-libs/network/esp8266/network_esp8266.c
+	   targets/esp8266/user_main.c \
+	   targets/esp8266/jshardware.c \
+	   targets/esp8266/esp8266_board_utils.c \
+	   libs/network/esp8266/network_esp8266.c
+# if using the hw_timer:   targets/esp8266/hw_timer.c \
 
 # The tool used for building the firmware and flashing
 ESPTOOL_CK ?= esptool-ck
@@ -1505,7 +1500,7 @@ $(PROJ_NAME): $(OBJS)
 
 else ifdef ESP8266_512KB
 # for the 512KB flash we generate non-OTA binaries
-proj: $(PROJ_NAME).elf $(PROJ_NAME)_0x00000.bin $(PROJ_NAME)_0x10000.bin
+proj: $(PROJ_NAME).elf $(PROJ_NAME)_0x00000.bin $(PROJ_NAME)_0x10000.bin $(PROJ_NAME).lst
 
 # linking is complicated. The Espruino source files get compiled into the .text section. The
 # Espressif SDK libraries have .text and .irom0 sections. We need to put the libraries' .text into
@@ -1518,7 +1513,7 @@ proj: $(PROJ_NAME).elf $(PROJ_NAME)_0x00000.bin $(PROJ_NAME)_0x10000.bin
 $(PROJ_NAME).elf: $(OBJS) $(LINKER_FILE)
 	$(Q)$(LD) $(OPTIMIZEFLAGS) -nostdlib -Wl,--no-check-sections -Wl,-static -r -o partial.o $(OBJS)
 	$(Q)$(OBJCOPY) --rename-section .text=.irom0.text --rename-section .literal=.irom0.literal partial.o
-	$(Q)$(LD) $(LDFLAGS) -o $@ partial.o -Wl,--start-group $(LIBS) -Wl,--end-group
+	$(Q)$(LD) $(LDFLAGS) -Ttargets/esp8266/eagle.app.v6.0x10000.ld -o $@ partial.o -Wl,--start-group $(LIBS) -Wl,--end-group
 	$(Q)rm partial.o
 	$(Q)$(OBJDUMP) --headers -j .irom0.text -j .text $(PROJ_NAME).elf | tail -n +4
 	@echo To disassemble: $(OBJDUMP) -d -l -x $(PROJ_NAME).elf
@@ -1532,6 +1527,11 @@ $(PROJ_NAME)_0x00000.bin: $(PROJ_NAME).elf
 $(PROJ_NAME)_0x10000.bin: $(PROJ_NAME).elf
 # Note that ESPTOOL_CK always returns non zero, ignore errors
 	$(Q)$(ESPTOOL_CK) -eo $< -es .irom0.text $@ -ec || true
+	
+# Generate a symbol table file for subsequent debugging where we know an exception address.
+$(PROJ_NAME).lst : $(PROJ_NAME).elf
+	$(Q)@echo "Building Symbol table (.lst) file"
+	$(Q)$(call obj_dump)
 
 flash: all $(PROJ_NAME)_0x00000.bin $(PROJ_NAME)_0x10000.bin
 ifndef COMPORT
@@ -1542,7 +1542,18 @@ endif
 else ifdef ESP8266
 # for the non-512KB flash we generate a single OTA binary, but we generate two of them, one per
 # OTA partition (Espressif calls these user1.bin and user2.bin)
-proj: $(PROJ_NAME).elf $(PROJ_NAME)_user1.bin $(PROJ_NAME)_user2.bin
+USER1_BIN   = $(PROJ_NAME)_user1.bin
+USER2_BIN   = $(PROJ_NAME)_user2.bin
+USER1_ELF   = $(PROJ_NAME)_user1.elf
+USER2_ELF   = $(PROJ_NAME)_user2.elf
+LD_SCRIPT1  = ./targets/esp8266/eagle.app.v6.new.1024.app1.ld
+LD_SCRIPT2  = ./targets/esp8266/eagle.app.v6.new.1024.app2.ld
+APPGEN_TOOL = $(ESP8266_SDK_ROOT)/tools/gen_appbin.py
+BOOTLOADER  = $(ESP8266_SDK_ROOT)/bin/boot_v1.4(b1).bin
+BLANK       = $(ESP8266_SDK_ROOT)/bin/blank.bin
+INIT_DATA   = $(ESP8266_SDK_ROOT)/bin/esp_init_data_default.bin
+
+proj: $(USER1_BIN) $(USER2_BIN)
 
 # linking is complicated. The Espruino source files get compiled into the .text section. The
 # Espressif SDK libraries have .text and .irom0 sections. We need to put the libraries' .text into
@@ -1552,29 +1563,56 @@ proj: $(PROJ_NAME).elf $(PROJ_NAME)_user1.bin $(PROJ_NAME)_user2.bin
 # Note that a previous method of renaming .text to .irom0 in each object file doesn't work when
 # we enable the link-time optimizer for inlining because it generates fresh code that all ends
 # up in .iram0.
-$(PROJ_NAME).elf: $(OBJS) $(LINKER_FILE)
-	$(Q)$(LD) $(OPTIMIZEFLAGS) -nostdlib -Wl,--no-check-sections -Wl,-static -r -o partial.o $(OBJS)
-	$(Q)$(OBJCOPY) --rename-section .text=.irom0.text --rename-section .literal=.irom0.literal partial.o
-	$(Q)$(LD) $(LDFLAGS) -o $@ partial.o -Wl,--start-group $(LIBS) -Wl,--end-group
-	$(Q)rm partial.o
-	$(Q)$(OBJDUMP) --headers -j .irom0.text -j .text $(PROJ_NAME).elf | tail -n +4
-	@echo To disassemble: $(OBJDUMP) -d -l -x $(PROJ_NAME).elf
 
-# binary image for idata0&iram0
-$(PROJ_NAME)_0x00000.bin: $(PROJ_NAME).elf
-# Note that ESPTOOL_CK always returns non zero, ignore errors
-	$(Q)$(ESPTOOL_CK) -eo $< -bo $@ -bs .text -bs .data -bs .rodata -bs .iram0.text -bc -ec || true
+# generate partially linked .o with all Esprunio source files linked
+$(PROJ_NAME)_partial.o: $(OBJS) $(LINKER_FILE)
+	@echo LD $@
+	$(Q)$(LD) $(OPTIMIZEFLAGS) -nostdlib -Wl,--no-check-sections -Wl,-static -r -o $@ $(OBJS)
+	$(Q)$(OBJCOPY) --rename-section .text=.irom0.text --rename-section .literal=.irom0.literal $@
 
-# binary image for irom0
-$(PROJ_NAME)_0x10000.bin: $(PROJ_NAME).elf
-# Note that ESPTOOL_CK always returns non zero, ignore errors
-	$(Q)$(ESPTOOL_CK) -eo $< -es .irom0.text $@ -ec || true
+# generate fully linked 'user1' .elf using linker script for first OTA partition
+$(USER1_ELF): $(PROJ_NAME)_partial.o $(LINKER_FILE)
+	@echo LD $@
+	$(Q)$(LD) $(LDFLAGS) -T$(LD_SCRIPT1) -o $@ $(PROJ_NAME)_partial.o -Wl,--start-group $(LIBS) -Wl,--end-group
+	$(Q)$(OBJDUMP) --headers -j .irom0.text -j .text $@ | tail -n +4
+	@echo To disassemble: $(OBJDUMP) -d -l -x $@
 
-flash: all $(PROJ_NAME)_0x00000.bin $(PROJ_NAME)_0x10000.bin
+# generate fully linked 'user2' .elf using linker script for second OTA partition
+$(USER2_ELF): $(PROJ_NAME)_partial.o $(LINKER_FILE)
+	@echo LD $@
+	$(Q)$(LD) $(LDFLAGS) -T$(LD_SCRIPT2) -o $@ $(PROJ_NAME)_partial.o -Wl,--start-group $(LIBS) -Wl,--end-group
+	@echo To disassemble: $(OBJDUMP) -d -l -x $@
+
+# generate binary image for user1, i.e. first OTA partition
+$(USER1_BIN): $(USER1_ELF)
+	$(Q)$(OBJCOPY) --only-section .text -O binary $(USER1_ELF) eagle.app.v6.text.bin
+	$(Q)$(OBJCOPY) --only-section .data -O binary $(USER1_ELF) eagle.app.v6.data.bin
+	$(Q)$(OBJCOPY) --only-section .rodata -O binary $(USER1_ELF) eagle.app.v6.rodata.bin
+	$(Q)$(OBJCOPY) --only-section .irom0.text -O binary $(USER1_ELF) eagle.app.v6.irom0text.bin
+	@ls -ls eagle*bin
+	$(Q)COMPILE=gcc python $(APPGEN_TOOL) $(USER1_ELF) 2 $(ESP_FLASH_MODE) $(ESP_FLASH_FREQ_DIV) $(ESP_FLASH_SIZE) >/dev/null
+	$(Q) rm -f eagle.app.v6.*.bin
+	$(Q) mv eagle.app.flash.bin $@
+	@echo "** user1.bin uses $$(stat -c '%s' $@) bytes of" $(ESP_FLASH_MAX) "available"
+	@if [ $$(stat -c '%s' $@) -gt $$(( $(ESP_FLASH_MAX) )) ]; then echo "$@ too big!"; false; fi
+
+# generate binary image for user2, i.e. second OTA partition
+# we make this rule dependent on user1.bin in order to serialize the two rules because they use
+# stupid static filenames (go blame the Espressif tool)
+$(USER2_BIN): $(USER2_ELF) $(USER1_BIN)
+	$(Q)$(OBJCOPY) --only-section .text -O binary $(USER2_ELF) eagle.app.v6.text.bin
+	$(Q)$(OBJCOPY) --only-section .data -O binary $(USER2_ELF) eagle.app.v6.data.bin
+	$(Q)$(OBJCOPY) --only-section .rodata -O binary $(USER2_ELF) eagle.app.v6.rodata.bin
+	$(Q)$(OBJCOPY) --only-section .irom0.text -O binary $(USER2_ELF) eagle.app.v6.irom0text.bin
+	$(Q)COMPILE=gcc python $(APPGEN_TOOL) $(USER2_ELF) 2 $(ESP_FLASH_MODE) $(ESP_FLASH_FREQ_DIV) $(ESP_FLASH_SIZE) >/dev/null
+	$(Q) rm -f eagle.app.v6.*.bin
+	$(Q) mv eagle.app.flash.bin $@
+
+flash: all $(USER1_BIN) $(USER2_BIN)
 ifndef COMPORT
 	$(error, "In order to flash, we need to have the COMPORT variable defined")
 endif
-	-$(Q)$(ESPTOOL) --port $(COMPORT) --baud 115200 write_flash --flash_freq 40m --flash_mode qio --flash_size 4m 0x00000 $(PROJ_NAME)_0x00000.bin.bin 0x10000 $(PROJ_NAME)_0x10000.bin
+	-$(Q)$(ESPTOOL) --port $(COMPORT) --baud 460800 write_flash --flash_freq $(ET_FF) --flash_mode qio --flash_size $(ET_FS) 0x0000 "$(BOOTLOADER)" 0x1000 $(USER1_BIN) $(ET_BLANK) $(BLANK)
 
 else # embedded, so generate bin, etc ---------------------------
 
@@ -1629,6 +1667,15 @@ serialflash: all
 	echo STM32 inbuilt serial bootloader, set BOOT0=1, BOOT1=0
 	python scripts/stm32loader.py -b 460800 -a $(BASEADDRESS) -ew $(STM32LOADER_FLAGS) $(PROJ_NAME).bin
 #	python scripts/stm32loader.py -b 460800 -a $(BASEADDRESS) -ewv $(STM32LOADER_FLAGS) $(PROJ_NAME).bin
+
+ifdef NRF5X # This requires nrfjprog to be working and in your system PATH.
+nordic_flash:
+	@echo Flashing: s132_nrf52_1.0.0-3.alpha_softdevice.hex
+	nrfjprog -f NRF52 --program $(ROOT)/targetlibs/nrf5x/s132_nrf52_1.0.0-3.alpha_softdevice.hex --chiperase --verify
+	@echo Flashing: $(ROOT)/$(PROJ_NAME).hex
+	nrfjprog -f NRF52 --program $(ROOT)/$(PROJ_NAME).hex --verify
+	nrfjprog -f NRF52 --reset
+endif
 
 gdb:
 	echo "target extended-remote :4242" > gdbinit
