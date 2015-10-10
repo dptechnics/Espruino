@@ -582,7 +582,7 @@ void jsiSoftKill() {
   }
 }
 
-void jsiSemiInit(bool autoLoad) {
+void jsiSemiInit(bool autoLoad, bool consolePrint) {
   jspInit();
 
   // Set state
@@ -606,7 +606,7 @@ void jsiSemiInit(bool autoLoad) {
   jsiSoftInit();
 
   if (jsiEcho()) { // intentionally not using jsiShowInputLine()
-    if (!loadFlash) {
+    if (!loadFlash && consolePrint) {
       jsiConsolePrint(
 #ifndef LINUX
           // set up terminal to avoid word wrap
@@ -634,7 +634,22 @@ void jsiInit(bool autoLoad) {
   consoleDevice = EV_LIMBO;
 #endif
 
-  jsiSemiInit(autoLoad);
+  jsiSemiInit(autoLoad, true);
+}
+
+/*
+ * The 'proper' init function for embedded evaluation use. No output will be printed
+ * unless asked by the evaluated code. 
+ */
+void jsiInitForEval(bool autoLoad)
+{
+#if defined(LINUX) || !defined(USB)
+  consoleDevice = DEFAULT_CONSOLE_DEVICE;
+#else
+  consoleDevice = EV_LIMBO;
+#endif
+
+  jsiSemiInit(autoLoad, false);
 }
 
 #ifndef LINUX
@@ -1600,7 +1615,7 @@ void jsiIdle() {
       jsvKill();
       jshReset();
       jsvInit();
-      jsiSemiInit(false); // don't autoload
+      jsiSemiInit(false, false); // don't autoload
     }
     if ((jsiStatus&JSIS_TODO_MASK) == JSIS_TODO_FLASH_SAVE) {
       jsiStatus &= (JsiStatus)~JSIS_TODO_MASK;

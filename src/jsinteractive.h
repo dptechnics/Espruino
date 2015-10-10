@@ -25,6 +25,7 @@
 
 /// autoLoad = do we load the current state if it exists?
 void jsiInit(bool autoLoad);
+void jsiInitForEval(bool autoLoad);
 void jsiKill();
 
 #ifndef LINUX
