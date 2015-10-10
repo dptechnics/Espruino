@@ -457,8 +457,7 @@ else ifdef DPTBOARD
 EMBEDDED=1
 BOARD=DPTBOARD
 DEFINES += -DDPTBOARD -DSYSFS_GPIO_DIR="\"/sys/class/gpio\"" -DMIPS
-LINUX=1
-OPENWRT_UCLIBC=1	# link with toolchain libc (uClibc or musl)
+DPTBOARD=1
 FIXED_OBJ_NAME=1	# when defined the linker will always produce 'espruino' as executable name, for packaging in .ipk, .deb,
 USE_FILESYSTEM=1
 USE_GRAPHICS=1
@@ -1344,6 +1343,17 @@ LIBS += -lc
 else
 LIBS += -lstdc++
 endif
+endif
+
+ifdef DPTBOARD
+DEFINES += -DLINUX
+INCLUDE += -I$(ROOT)/targets/dptboard
+SOURCES +=                              \
+targets/dptboard/main.c                    \
+targets/dptboard/jshardware.c
+LIBS += -lm 		# maths lib
+LIBS += -lpthread 	# thread lib for input processing
+LIBS += -lc		# OpenWRT uClibc
 endif
 
 ifdef NUCLEO
